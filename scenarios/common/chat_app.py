@@ -2,7 +2,9 @@
 import os
 import openai
 
-openai.api_key = os.environ["OPENAI_API_KEY"]
+# For GitHub Models: set GITHUB_MODELS_TOKEN=<PAT> and OPENAI_BASE_URL=https://models.inference.ai.azure.com
+openai.api_key = os.environ.get("GITHUB_MODELS_TOKEN") or os.environ.get("OPENAI_API_KEY", "")
+openai.api_base = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
 
 
 class DemoApp:
@@ -21,7 +23,8 @@ class ChatMLApp(DemoApp):
 
     def __init__(self, scenario, tools: list[str] = None, model="gpt-3.5-turbo"):
         super().__init__(scenario)
-        self.model = model
+        # Env MODEL or OPENAI_MODEL overrides (e.g. MODEL=gpt-4o to use GPT-4o for all scenarios).
+        self.model = os.environ.get("MODEL") or os.environ.get("OPENAI_MODEL") or model
         _newline = "\n"
         self.tools = tools or ["search", "view", "memory", "fetch", "e-mail"]
         self.messages = [
@@ -59,10 +62,18 @@ class ChatMLApp(DemoApp):
             "assistant: view"})
         self.messages.append({"role": role, "content": msg})
         self.scenario.log(f"{role}: {msg}")
-        response = openai.ChatCompletion.create(model=self.model, messages=self.messages)
+        try:
+            response = openai.ChatCompletion.create(model=self.model, messages=self.messages)
+        except openai.error.InvalidRequestError as e:
+            if "content management policy" in str(e) or "content_filter" in str(e):
+                raise AssertionError(
+                    "[Azure content filter] Input blocked. "
+                    "GitHub Models uses Azure OpenAI which filters ChatML tokens (<|im_start|> etc.). "
+                    "Use OPENAI_BASE_URL unset + direct OpenAI API for injection scenarios."
+                ) from e
+            raise
         content = response['choices'][0]['message']['content']
         finish_reason = response['choices'][0]['finish_reason']
-        tokens = response['usage']['total_tokens']
 
         if finish_reason == "content_filter":
             raise Exception("Content filter triggered")
