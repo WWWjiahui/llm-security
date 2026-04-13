@@ -2,6 +2,7 @@ from scenarios.common.scenario import ChatMLAppScenario
 
 
 class RemoteControlGPT4(ChatMLAppScenario):
+    skip = True  # baseline already run; use remote_control_mutation.py variants instead
     name = "Remote control of GPT-4"
     description = "This demonstration shows how an attacker could remotely control an LM agent once poisoned."
     target = "ChatML/GPT-4 powered app with access to external real-time information."

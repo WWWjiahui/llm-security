@@ -62,16 +62,28 @@ class ChatMLApp(DemoApp):
             "assistant: view"})
         self.messages.append({"role": role, "content": msg})
         self.scenario.log(f"{role}: {msg}")
-        try:
-            response = openai.ChatCompletion.create(model=self.model, messages=self.messages)
-        except openai.error.InvalidRequestError as e:
-            if "content management policy" in str(e) or "content_filter" in str(e):
-                raise AssertionError(
-                    "[Azure content filter] Input blocked. "
-                    "GitHub Models uses Azure OpenAI which filters ChatML tokens (<|im_start|> etc.). "
-                    "Use OPENAI_BASE_URL unset + direct OpenAI API for injection scenarios."
-                ) from e
-            raise
+        import time, re
+        for attempt in range(5):
+            try:
+                response = openai.ChatCompletion.create(model=self.model, messages=self.messages)
+                break
+            except openai.error.RateLimitError as e:
+                # Parse suggested wait time from error message, default to 30s
+                m = re.search(r"(\d+)\s*second", str(e))
+                wait = int(m.group(1)) + 2 if m else 30
+                print(f"[rate limit] waiting {wait}s before retry {attempt + 1}/4 …")
+                time.sleep(wait)
+                if attempt == 4:
+                    raise
+            except openai.error.InvalidRequestError as e:
+                if "content management policy" in str(e) or "content_filter" in str(e):
+                    raise AssertionError(
+                        "[Azure semantic content filter] Input blocked. "
+                        "Azure OpenAI applies semantic-level filtering (not just token pattern matching). "
+                        "Plain text, markdown-obfuscated, and Base64-encoded payloads are all caught. "
+                        "Switch to direct OpenAI API (unset OPENAI_BASE_URL) to bypass this layer."
+                    ) from e
+                raise
         content = response['choices'][0]['message']['content']
         finish_reason = response['choices'][0]['finish_reason']
 
@@ -104,7 +116,7 @@ class ChatMLApp(DemoApp):
                 elif args[0] == "write":
                     self.memory[args[1]] = ' '.join(args[2:])
                     system_response = "Success"
-                elif args[0] == "list":
+                elif args[0] in ("list", "keys", "ls"):
                     system_response = "\n".join(self.memory.keys())
             elif tool == "fetch":
                 url = args[0].strip()

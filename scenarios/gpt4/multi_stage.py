@@ -8,6 +8,7 @@ from scenarios.common.scenario import ChatMLAppScenario
 # to a regular user visiting the Wikipedia site.
 
 class MultiStageGPT4(ChatMLAppScenario):
+    skip = True  # baseline already run; use multi_stage_mutation.py variants instead
     name = "Multi-stage GPT-4 injection"
     description = "This demonstration shows how a small prompt injection can be bootstrapped into a larger injection."
     target = "ChatML/GPT-4 powered app able to see web content."

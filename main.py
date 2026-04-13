@@ -29,7 +29,8 @@ def find_subclasses(base_class, folder_path):
 
                 for _, cls in inspect.getmembers(module, inspect.isclass):
                     if issubclass(cls, base_class) and cls != base_class:
-                        subclasses.append(cls)
+                        if not getattr(cls, "skip", False):
+                            subclasses.append(cls)
 
     sys.path.pop(0)
     return subclasses
